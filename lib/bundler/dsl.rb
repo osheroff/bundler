@@ -216,7 +216,13 @@ module Bundler
         opts["git"] = "git://github.com/#{github}.git"
       end
 
-      ["git", "path"].each do |type|
+      # if both git and path are specified, use git as fallback when the path isn't there.
+      if opts['git'] && opts['path']
+        opts['pathoverride'] = opts.delete('path')
+      end
+
+      # Normalize git and path options
+      ["path", "git"].each do |type|
         if param = opts[type]
           if version.first && version.first =~ /^\s*=?\s*(\d[^\s]*)\s*$/
             options = opts.merge("name" => name, "version" => $1)

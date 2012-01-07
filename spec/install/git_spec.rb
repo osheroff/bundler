@@ -156,6 +156,37 @@ describe "bundle install with git sources" do
     end
   end
 
+  describe "with path also specified" do
+    before(:each) do
+      build_git "rack", "0.8"
+      build_lib("rack", :path => tmp.join("foo")) do |s|
+        s.write "lib/rack.rb", "puts 'LOCAL REQUIRE'"
+      end
+    end
+
+    it "prefers the version in :path" do
+      install_gemfile <<-G
+        source "file://#{gem_repo1}"
+        gem "rack", :git => "#{lib_path('rack-0.8')}", :path => "#{tmp.join('foo')}"
+      G
+
+      lockfile = File.read(bundled_app("Gemfile.lock"))
+      run "require 'rack'"
+      out.should == 'LOCAL REQUIRE'
+    end
+
+    it "falls back to the version in :git" do
+      FileUtils.rm_rf(tmp.join("foo"))
+
+      install_gemfile <<-G
+        source "file://#{gem_repo1}"
+        gem "rack", :git => "#{lib_path('rack-0.8')}", :path => "#{tmp.join('foo')}"
+      G
+      run "require 'rack'"
+      out.should_not == 'LOCAL REQUIRE'
+    end
+  end
+
   describe "specified inline" do
     # TODO: Figure out how to write this test so that it is not flaky depending
     #       on the current network situation.
@@ -284,6 +315,9 @@ describe "bundle install with git sources" do
     should_be_installed "foo 1.0"
     should_be_installed "rails 2.3.2"
   end
+
+
+
 
   it "runs the gemspec in the context of its parent directory" do
     build_lib "bar", :path => lib_path("foo/bar"), :gemspec => false do |s|

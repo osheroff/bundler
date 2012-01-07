@@ -329,7 +329,12 @@ module Bundler
       def load_spec_files
         index = Index.new
 
-        expanded_path = path.expand_path(Bundler.root)
+        if @pathoverride
+          override_path = Pathname.new(@pathoverride).expand_path(Bundler.root)
+          expanded_path = override_path if File.directory?(override_path)
+        end
+
+        expanded_path ||= path.expand_path(Bundler.root)
 
         if File.directory?(expanded_path)
           Dir["#{expanded_path}/#{@glob}"].each do |file|
@@ -487,6 +492,7 @@ module Bundler
         @ref        = options["ref"] || options["branch"] || options["tag"] || 'master'
         @revision   = options["revision"]
         @submodules = options["submodules"]
+        @pathoverride = options["pathoverride"]
         @update     = false
         @installed  = nil
       end
@@ -503,7 +509,9 @@ module Bundler
           out << "  #{opt}: #{options[opt]}\n" if options[opt]
         end
         out << "  glob: #{@glob}\n" unless @glob == DEFAULT_GLOB
+        out << "  pathoverride: #{@pathoverride}\n" if @pathoverride
         out << "  specs:\n"
+        out
       end
 
       def eql?(o)
@@ -525,7 +533,7 @@ module Bundler
       def name
         File.basename(@uri, '.git')
       end
-
+ 
       def path
         @install_path ||= begin
           git_scope = "#{base_name}-#{shortref_for_path(revision)}"
@@ -566,7 +574,7 @@ module Bundler
 
       def load_spec_files
         super
-      rescue PathError, GitError
+      rescue PathError, GitError => e
         raise GitError, "#{to_s} is not checked out. Please run `bundle install`"
       end
 
