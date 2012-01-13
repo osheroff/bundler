@@ -326,15 +326,12 @@ module Bundler
         File.basename(path.expand_path(Bundler.root).to_s)
       end
 
+      def expanded_path
+        path.expand_path(Bundler.root)
+      end
+
       def load_spec_files
         index = Index.new
-
-        if @pathoverride
-          override_path = Pathname.new(@pathoverride).expand_path(Bundler.root)
-          expanded_path = override_path if File.directory?(override_path)
-        end
-
-        expanded_path ||= path.expand_path(Bundler.root)
 
         if File.directory?(expanded_path)
           Dir["#{expanded_path}/#{@glob}"].each do |file|
@@ -492,7 +489,6 @@ module Bundler
         @ref        = options["ref"] || options["branch"] || options["tag"] || 'master'
         @revision   = options["revision"]
         @submodules = options["submodules"]
-        @pathoverride = options["pathoverride"]
         @update     = false
         @installed  = nil
       end
@@ -504,18 +500,17 @@ module Bundler
       def to_lock
         out = "GIT\n"
         out << "  remote: #{@uri}\n"
-        out << "  revision: #{revision}\n"
+        out << "  revision: #{revision}\n" if @revision
         %w(ref branch tag submodules).each do |opt|
           out << "  #{opt}: #{options[opt]}\n" if options[opt]
         end
         out << "  glob: #{@glob}\n" unless @glob == DEFAULT_GLOB
-        out << "  pathoverride: #{@pathoverride}\n" if @pathoverride
         out << "  specs:\n"
         out
       end
 
       def eql?(o)
-        Git === o            &&
+        o.class == Git       &&
         uri == o.uri         &&
         ref == o.ref         &&
         name == o.name       &&
@@ -533,7 +528,7 @@ module Bundler
       def name
         File.basename(@uri, '.git')
       end
- 
+
       def path
         @install_path ||= begin
           git_scope = "#{base_name}-#{shortref_for_path(revision)}"
@@ -709,5 +704,61 @@ module Bundler
       end
     end
 
+    class GitWithPath < Git
+      attr_reader :pathoverride
+
+      def to_lock
+        out = "GITWITHPATH\n"
+        out << "  remote: #{@uri}\n"
+        out << "  revision: #{revision}\n" if @revision
+        %w(ref branch tag submodules).each do |opt|
+          out << "  #{opt}: #{options[opt]}\n" if options[opt]
+        end
+        out << "  glob: #{@glob}\n" unless @glob == DEFAULT_GLOB
+        out << "  pathoverride: #{@pathoverride}\n"
+        out << "  specs:\n"
+        out
+      end
+
+      def initialize(options)
+        super
+        @pathoverride = options['pathoverride']
+      end
+
+      def eql?(o)
+        GitWithPath === o    &&
+        uri == o.uri         &&
+        ref == o.ref         &&
+        name == o.name       &&
+        version == o.version &&
+        submodules == o.submodules &&
+        pathoverride == o.pathoverride
+      end
+
+      alias == eql?
+
+      def override_path
+        return nil unless @pathoverride
+        override_path = Pathname.new(@pathoverride).expand_path(Bundler.root)
+        return nil unless File.directory?(override_path)
+        return override_path
+      end
+
+      def revision
+        override_path ? nil : super
+      end
+
+      def expanded_path
+        override_path || super
+      end
+
+      def to_s
+        if override_path
+          "source at #{override_path}"
+        else
+          super
+        end
+      end
+    end
   end
 end

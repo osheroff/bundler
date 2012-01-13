@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 require 'bundler'
+require 'ruby-debug'
 begin
   # Check if an older version of bundler is installed
   $:.each do |path|

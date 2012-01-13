@@ -124,7 +124,8 @@ module Bundler
         raise DeprecatedError, msg
       end
 
-      source Source::Git.new(_normalize_hash(options).merge("uri" => uri)), source_options, &blk
+      source_class = options['pathoverride'] ? Source::GitWithPath : Source::Git
+      source source_class.new(_normalize_hash(options).merge("uri" => uri)), source_options, &blk
     end
 
     def to_definition(lockfile, unlock)
