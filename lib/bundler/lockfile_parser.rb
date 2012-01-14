@@ -26,18 +26,24 @@ module Bundler
 
     TYPES = {
       "GIT"  => Bundler::Source::Git,
-      "GITWITHPATH" => Bundler::Source::GitWithPath,
       "GEM"  => Bundler::Source::Rubygems,
       "PATH" => Bundler::Source::Path
     }
 
     def parse_source(line)
       case line
-      when "GIT", "GEM", "GITWITHPATH", "PATH"
+      when "GIT", "GEM", "PATH"
         @current_source = nil
         @opts, @type = {}, line
       when "  specs:"
         @current_source = TYPES[@type].from_lock(@opts)
+        if @opts["pathoverride"]
+          puts "hey"
+          puts @current_source.inspect
+          @current_source = Bundler::Source::PathOverride.new('source' => @current_source, 'path_override' => @opts["pathoverride"])
+          puts "hey there" + @current_source.to_s
+        end
+
         @sources << @current_source
       when /^  ([a-z]+): (.*)$/i
         value = $2

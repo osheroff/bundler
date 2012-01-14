@@ -235,7 +235,7 @@ module Bundler
       opts["source"]  ||= @source
 
       if path_override
-        opts["source"] = Bundler::Source::PathOverride.new(opts)
+        opts["source"] = Bundler::Source::PathOverride.new(opts.merge("path_override" => path_override))
       end
 
       source opts["source"] unless opts["source"].class == Bundler::Source::Rubygems

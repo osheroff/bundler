@@ -707,70 +707,57 @@ module Bundler
     class PathOverride
       def initialize(options)
         @delegate_source = options['source']
-        @override = options['path_override']
+        @override_path = options['path_override']
       end
 
-      def method_missing(*args, &block)
-        puts args.join(",")
-        @delegate_source.send(*args, &block)
-      end
-    end
+      attr_reader :delegate_source
 
-    class GitWithPath < Git
-      attr_reader :pathoverride
+      def method_missing(method, *args, &block)
+        @delegate_source.send(method, *args, &block)
+      end
+
+      def load_overrides
+        @overrides ||= local_overrides
+      end
+
+      DEFAULT_GLOB = "{,*,*/*}.gemspec"
+      def local_overrides
+        index = Index.new
+
+        expanded_path = Pathname.new(@override_path).expand_path(Bundler.root)
+
+        if File.directory?(expanded_path)
+          Dir["#{expanded_path}/#{DEFAULT_GLOB}"].each do |file|
+            spec = Bundler.load_gemspec(file)
+            if spec
+              spec.loaded_from = file.to_s
+              spec.source = self
+              index << spec
+            end
+          end
+        end
+        index
+      end
+
+      def specs
+        local = local_overrides
+        other = @delegate_source.specs
+        local.use(other)
+        local
+      end
 
       def to_lock
-        out = "GITWITHPATH\n"
-        out << "  remote: #{@uri}\n"
-        out << "  revision: #{revision}\n" if @revision
-        %w(ref branch tag submodules).each do |opt|
-          out << "  #{opt}: #{options[opt]}\n" if options[opt]
-        end
-        out << "  glob: #{@glob}\n" unless @glob == DEFAULT_GLOB
-        out << "  pathoverride: #{@pathoverride}\n"
-        out << "  specs:\n"
-        out
+        txt = @delegate_source.to_lock
+        txt.sub!(/specs:/, "pathoverride: #{@override_path}\n  specs:")
+        txt
       end
 
-      def initialize(options)
-        super
-        @pathoverride = options['pathoverride']
-      end
-
-      def eql?(o)
-        GitWithPath === o    &&
-        uri == o.uri         &&
-        ref == o.ref         &&
-        name == o.name       &&
-        version == o.version &&
-        submodules == o.submodules &&
-        pathoverride == o.pathoverride
+      def eql?(source)
+        source.class == PathOverride && source.delegate_source == @delegate_source
       end
 
       alias == eql?
-
-      def override_path
-        return nil unless @pathoverride
-        override_path = Pathname.new(@pathoverride).expand_path(Bundler.root)
-        return nil unless File.directory?(override_path)
-        return override_path
-      end
-
-      def revision
-        override_path ? nil : super
-      end
-
-      def expanded_path
-        override_path || super
-      end
-
-      def to_s
-        if override_path
-          "source at #{override_path}"
-        else
-          super
-        end
-      end
     end
+
   end
 end
