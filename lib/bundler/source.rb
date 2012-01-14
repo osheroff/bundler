@@ -704,6 +704,18 @@ module Bundler
       end
     end
 
+    class PathOverride
+      def initialize(options)
+        @delegate_source = options['source']
+        @override = options['path_override']
+      end
+
+      def method_missing(*args, &block)
+        puts args.join(",")
+        @delegate_source.send(*args, &block)
+      end
+    end
+
     class GitWithPath < Git
       attr_reader :pathoverride
 

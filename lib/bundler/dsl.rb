@@ -109,7 +109,7 @@ module Bundler
     end
 
     def path(path, options = {}, source_options = {}, &blk)
-      source Source::Path.new(_normalize_hash(options).merge("path" => Pathname.new(path))), source_options, &blk
+      Source::Path.new(_normalize_hash(options).merge("path" => Pathname.new(path)))
     end
 
     def git(uri, options = {}, source_options = {}, &blk)
@@ -124,8 +124,7 @@ module Bundler
         raise DeprecatedError, msg
       end
 
-      source_class = options['pathoverride'] ? Source::GitWithPath : Source::Git
-      source source_class.new(_normalize_hash(options).merge("uri" => uri)), source_options, &blk
+      Source::Git.new(_normalize_hash(options).merge("uri" => uri))
     end
 
     def to_definition(lockfile, unlock)
@@ -186,7 +185,7 @@ module Bundler
     def _normalize_options(name, version, opts)
       _normalize_hash(opts)
 
-      invalid_keys = opts.keys - %w(group groups git github path name branch ref tag require submodules platform platforms type)
+      invalid_keys = opts.keys - %w(group groups git github path path_override name branch ref tag require submodules platform platforms type)
       if invalid_keys.any?
         plural = invalid_keys.size > 1
         message = "You passed #{invalid_keys.map{|k| ':'+k }.join(", ")} "
@@ -217,25 +216,30 @@ module Bundler
         opts["git"] = "git://github.com/#{github}.git"
       end
 
-      # if both git and path are specified, use git as fallback when the path isn't there.
-      if opts['git'] && opts['path']
-        opts['pathoverride'] = opts.delete('path')
-      end
+      path_override = opts.delete("path_override")
 
       # Normalize git and path options
-      ["path", "git"].each do |type|
+      ["git", "path"].each do |type|
         if param = opts[type]
           if version.first && version.first =~ /^\s*=?\s*(\d[^\s]*)\s*$/
             options = opts.merge("name" => name, "version" => $1)
           else
             options = opts.dup
           end
+
           source = send(type, param, options, :prepend => true) {}
           opts["source"] = source
         end
       end
 
       opts["source"]  ||= @source
+
+      if path_override
+        opts["source"] = Bundler::Source::PathOverride.new(opts)
+      end
+
+      source opts["source"] unless opts["source"].class == Bundler::Source::Rubygems
+
       opts["env"]     ||= @env
       opts["platforms"] = platforms.dup
       opts["group"]     = groups
