@@ -360,6 +360,7 @@ module Bundler
             end
           end
         else
+          puts "#{expanded_path} doesn't exist"
           raise PathError, "The path `#{expanded_path}` does not exist."
         end
 
@@ -531,6 +532,7 @@ module Bundler
 
       def path
         @install_path ||= begin
+          puts self.inspect
           git_scope = "#{base_name}-#{shortref_for_path(revision)}"
 
           if Bundler.requires_sudo?
@@ -570,6 +572,7 @@ module Bundler
       def load_spec_files
         super
       rescue PathError, GitError => e
+        raise e
         raise GitError, "#{to_s} is not checked out. Please run `bundle install`"
       end
 
@@ -710,7 +713,7 @@ module Bundler
         @override_path = options['path_override']
       end
 
-      attr_reader :delegate_source
+      attr_reader :delegate_source, :override_path
 
       def method_missing(method, *args, &block)
         @delegate_source.send(method, *args, &block)
@@ -720,11 +723,13 @@ module Bundler
         @overrides ||= local_overrides
       end
 
+      def expanded_path
+        Pathname.new(@override_path).expand_path(Bundler.root)
+      end
+
       DEFAULT_GLOB = "{,*,*/*}.gemspec"
       def local_overrides
         index = Index.new
-
-        expanded_path = Pathname.new(@override_path).expand_path(Bundler.root)
 
         if File.directory?(expanded_path)
           Dir["#{expanded_path}/#{DEFAULT_GLOB}"].each do |file|
@@ -739,9 +744,14 @@ module Bundler
         index
       end
 
+      def path
+        File.directory?(expanded_path) ? expanded_path : @delegate_source.path
+      end
+
       def specs
         local = local_overrides
         other = @delegate_source.specs
+        other.each { |o| o.source = self }
         local.use(other)
         local
       end
@@ -753,7 +763,11 @@ module Bundler
       end
 
       def eql?(source)
-        source.class == PathOverride && source.delegate_source == @delegate_source
+        puts self.class
+        puts source.class
+        puts source.delegate_source == @delegate_source if (source.class == PathOverride)
+
+        source.class == PathOverride && source.delegate_source == @delegate_source && source.override_path == @override_path
       end
 
       alias == eql?

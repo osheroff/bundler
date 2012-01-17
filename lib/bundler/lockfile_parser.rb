@@ -38,10 +38,7 @@ module Bundler
       when "  specs:"
         @current_source = TYPES[@type].from_lock(@opts)
         if @opts["pathoverride"]
-          puts "hey"
-          puts @current_source.inspect
           @current_source = Bundler::Source::PathOverride.new('source' => @current_source, 'path_override' => @opts["pathoverride"])
-          puts "hey there" + @current_source.to_s
         end
 
         @sources << @current_source

@@ -333,7 +333,10 @@ module Bundler
       end
 
       @sources.map! do |source|
-        @locked_sources.find { |s| s == source } || source
+        puts "\n\nTrying to converge #{source.inspect} with \n\n#{@locked_sources.map(&:inspect).join("\n,")}\n"
+        new = @locked_sources.find { |s| s == source } || source
+        puts "... #{new.object_id !=  source.object_id}"
+        new
       end
 
       @sources.each do |source|
